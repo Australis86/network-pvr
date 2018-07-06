@@ -3,7 +3,7 @@ This is a collection of scripts for a network-accessible PVR running TVHeadend v
 
 ## Dependencies
 
-The scripts are build on Python 2.7.x and require the `psutil` module.
+The scripts are built on Python 2.7.x and require the `psutil` module.
 
 ## Usage
 
@@ -15,7 +15,7 @@ This script is designed to be called by TVHeadend once a recording is complete. 
 PVRtransfer.py %f %e
 ```
 
-Existing recordings can be manually processed using the `-p` option, rather than waiting for a recording to complete.
+Existing recordings can be manually processed using the `-p` option, rather than waiting for the next recording to complete. **Note**: when called by TVHeadend, the script will not transfer recordings if another recording is underway or about to begin.
 
 The script includes a test option (`PVRtransfer.py -t`) to do a complete check of the script and parts of the system:
 

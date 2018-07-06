@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-------------------------------------------------------------------------------
-# Name:      PVR Transfer v2.8
+# Name:      PVR Transfer v2.9
 # Purpose:   Process finished TVHeadend recordings and transfer them to 
 #            a NFS share.
 #
@@ -48,9 +48,10 @@ PATH = os.path.abspath(os.path.dirname(__file__))
 SCRIPT = os.path.splitext(os.path.basename(__file__))
 LOGFILE = os.path.join(PATH, '%s.log' % SCRIPT[0])
 EMAILFILE = os.path.join(PATH, '%s.email' % SCRIPT[0])
+SHARETIMEOUT = 30 # Seconds; allow enough time for drive to spin up
 
 # GLOBAL VARIABLES
-nfs_share = '/mnt/nas-pvr/' # NFS share to be used as destination for completed recordings
+shared_path = '/mnt/nas-pvr/' # NFS share to be used as destination for completed recordings
 tvh = '/home/hts/.hts/tvheadend/dvr/log' # Path to scheduled recordings (JSON)
 recompute = False # Recompute checksums if checksum file found
 pvr_interval = datetime.timedelta(hours = 1) # Minimum time between finished recording and next recording required for processing
@@ -76,17 +77,17 @@ def sendEmail(subject, text=None, html=None):
 	mail.sendEmail(recipient=recipient, subject=subject, bodytext=text, bodyhtml=html)
 
 	
-def alertNFS(msg):
-	'''Send an email alert that the NFS share is down.'''
+def alertShare(msg):
+	'''Send an email alert that the share is down.'''
 
-	message = 'The NFS share was not accessible: %s' % msg
-	sendEmail('NFS share not accessible', text=message)
+	message = 'The share was not accessible: %s' % msg
+	sendEmail('Share not accessible', text=message)
 
 
 def alertTransfer(recording, checksum, error):
 	'''Send an email that a file transfer failed.'''
 
-	message = 'The transfer of file recording %s or checksum file %s to the NFS \
+	message = 'The transfer of file recording %s or checksum file %s to the  \
 share failed due to an error: \n\n%s' % (recording, checksum, error)
 	sendEmail('File transfer failed', text=message)
 
@@ -102,11 +103,11 @@ def alertTVHError(recording, error):
 
 
 def handleShareError(signum, frame):
-	'''Alert if the NFS mount times out.'''
+	'''Alert if the share mount times out.'''
 
-	msg = "Stale NFS mount!"
+	msg = "Stale share mount!"
 	logPrint(msg)
-	alertNFS(msg)
+	alertShare(msg)
 	sys.exit(1)
 
 
@@ -211,22 +212,22 @@ def checkLocalFreeSpace():
 	
 	
 def checkShare(report=True):
-	'''Check if the NFS share is mounted correctly.'''
+	'''Check if the share is mounted correctly.'''
 
 	mounted = False
 	writable = False
 
 	try:
-		# Use a signal alarm as a timeout to prevent stale NFS mounts hanging
+		# Use a signal alarm as a timeout to prevent stale mounts hanging
 		signal.signal(signal.SIGALRM, handleShareError)
-		signal.alarm(15)
+		signal.alarm(SHARETIMEOUT)
 
 		# First check if the path is mounted
-		mounted = os.path.ismount(nfs_share)
+		mounted = os.path.ismount(shared_path)
 
 		if mounted:
 			signal.alarm(0) # Disable the alarm
-			testfile = os.path.join(nfs_share, '.network.pvr')
+			testfile = os.path.join(shared_path, '.network.pvr')
 
 			# If the path is mounted, test writing to it
 			try:
@@ -238,29 +239,29 @@ def checkShare(report=True):
 				os.remove(testfile)
 
 			except IOError, err:
-				msg = 'Unable to write to NFS share.'
+				msg = 'Unable to write to share: %s' % (str(err))
 				logPrint(msg)
 				if report:
-					alertNFS(msg)
+					alertShare(msg)
 					sys.exit(1)
 					
 		else:
 			signal.alarm(0) # Disable the alarm
-			msg = 'NFS share is not mounted.'
+			msg = 'Share is not mounted.'
 			logPrint(msg)
 			if report:
-				alertNFS(msg)
+				alertShare(msg)
 				sys.exit(1)
 
 	except Exception, err:
 		signal.alarm(0) # Disable the alarm
-		msg = 'Error checking NFS share.'
+		msg = 'Error checking share.\n%s' % str(err)
 		logPrint(msg)
 		if report:
-			alertNFS(msg)
+			alertShare(msg)
 			sys.exit(1)
 
-	logPrint('NFS share mounted = %s, writable = %s' % (mounted, writable))
+	logPrint('Share mounted = %s, writable = %s' % (mounted, writable))
 
 	return (mounted, writable)
 
@@ -296,24 +297,24 @@ def checkRecordings():
 
 
 def moveRecording(recording, chkfile):
-	'''Move the recording and the checksum file to the NFS share.'''
+	'''Move the recording and the checksum file to the share.'''
 
 	# Generate the full destination paths
 	r = os.path.basename(recording)
-	dest_r = os.path.abspath(os.path.join(nfs_share, r))
-	dest_c = os.path.abspath(os.path.join(nfs_share, os.path.basename(chkfile)))
+	dest_r = os.path.abspath(os.path.join(shared_path, r))
+	dest_c = os.path.abspath(os.path.join(shared_path, os.path.basename(chkfile)))
 
 	# Attempt to move the recording and checksum to the NAS
 	try:
 		shutil.move(recording, dest_r)
 		shutil.move(chkfile, dest_c)
-		logPrint('Successfully transferred recording (%s) to NFS share.' % (r))
+		logPrint('Successfully transferred recording (%s) to shared folder.' % (r))
 		return True
 
 	except shutil.Error, err:
 		e = str(err)
 		alertTransfer(recording, chkfile, e)
-		logPrint('Error transferring recording (%s) to NFS share:\n%s' % (r, e))
+		logPrint('Error transferring recording (%s) to shared folder:\n%s' % (r, e))
 		return False
 
 
@@ -325,7 +326,7 @@ def processRecording(recording):
 	# Check for any upcoming recordings
 	checkRecordings()
 
-	# Check for NFS share access
+	# Check for share access
 	checkShare()
 
 	# Generate the checksum for the recording
@@ -410,7 +411,7 @@ def processPreviousRecordings():
 	# Check for recordings
 	(recordings, nextrec) = checkForRecordings()
 
-	# Check for NFS share access
+	# Check for share access
 	checkShare()
 
 	# Process each completed recording
@@ -439,12 +440,12 @@ def scriptTest():
 	except Exception, err:
 		scriptChksum = 'Unable to generate the checksum for the script: %s' % str(err)
 
-	# Test NFS share access
+	# Test share access
 	try:
 		(nfs_mount, nfs_write) = checkShare(False)
-		nfs_msg = 'NFS share mounted = %s; writable = %s.' % (nfs_mount, nfs_write)
+		nfs_msg = 'Share mounted = %s; writable = %s.' % (nfs_mount, nfs_write)
 	except Exception, err:
-		nfs_msg = 'Error checking NFS share: %s' % str(err)
+		nfs_msg = 'Error checking share: %s' % str(err)
 
 	# Test checking for recordings
 	try:
