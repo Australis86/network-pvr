@@ -5,6 +5,14 @@ This is a collection of scripts for a network-accessible PVR running TVHeadend v
 
 The scripts are built on Python 2.7.x and require the `psutil` module.
 
+## Installation and Configuration
+
+1. Download or clone a copy of the repository to your preferred location. 
+2. Copy `mailConfig.template` to `mailConfig.py` and populate the parameters as required (this is required for email functionality).
+3. Edit `PVRtransfer.py` and add your email address and TVHeadend account details.
+4. Test the script using the `-t` option.
+
+
 ## Usage
 
 ### PVRtransfer.py
