@@ -1,0 +1,3 @@
+[submodule "mail-utils"]
+	path = mailutils
+	url = git@github.com:Australis86/mail-utils.git

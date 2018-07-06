@@ -32,7 +32,7 @@ import datetime
 import hashlib # Python 2.5+
 import shutil
 import signal
-import mail
+from mailutils import mail
 import random
 import psutil # Not a default module - needs to be installed
 try:
