@@ -7,11 +7,31 @@ The scripts are build on Python 2.7.x and require the `psutil` module.
 
 ## Usage
 
-`PVRtransfer.py` is a script designed to be called by TVHeadend once a recording is complete. The recording is then transferred to a network share (i.e. NAS or a workstation where it can be edited). It can be called by TVHeadend as follows:
+### PVRtransfer.py
+
+This script is designed to be called by TVHeadend once a recording is complete. All completed recordings are then transferred to a network share (i.e. NAS or a workstation where they can be edited). The script can be called by TVHeadend as follows:
 
 ```
 PVRtransfer.py %f %e
 ```
+
+Existing recordings can be manually processed using the `-p` option, rather than waiting for a recording to complete.
+
+The script includes a test option (`PVRtransfer.py -t`) to do a complete check of the script and parts of the system:
+
+- test ability to generate checksums
+- test network share access
+- check completed and scheduled recordings
+- check if TVHeadend is running
+- test HTSP connectivity
+- check free space
+- email the results to test email functionality
+
+It also has a basic system check option (`PVRtransfer.py -c`) that can be used for debugging (or in a cron job) and will run a subset of the above tests:
+
+- check free space
+- check if TVHeadend is running
+- send an email if a problem is found
 
 
 ## History

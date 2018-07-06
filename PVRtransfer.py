@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-------------------------------------------------------------------------------
-# Name:      PVR Transfer v2.7
+# Name:      PVR Transfer v2.8
 # Purpose:   Process finished TVHeadend recordings and transfer them to 
 #            a NFS share.
 #
@@ -535,6 +535,14 @@ if __name__ == '__main__':
 		
 	elif '-r' in sys.argv: # Send an email on reboot
 		sendEmail('Network PVR System Rebooted', text='The Network PVR has been restarted.')
+
+	elif '-p' in sys.argv: # Check for previous recordings
+		try:
+			# Check for any old recordings
+			processPreviousRecordings()
+
+		except Exception, err:
+			logPrint('Exception: %s' % str(err))
 
 	else:
 		if args > 2: # Error specified
