@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 #-------------------------------------------------------------------------------
-# Name:        PVR Transfer v2
-# Purpose:     Process finished TVHeadEnd recordings and transfer them to 
-#              a NFS share.
+# Name:      PVR Transfer v2.4
+# Purpose:   Process finished TVHeadend recordings and transfer them to 
+#            a NFS share.
 #
-# Author:      Joshua White
+# Author:    Joshua White
 #
-# Created:     26/01/2016
-# Copyright:   (c) Joshua White 2016-2018
-# Licence:     GNU Lesser GPL v3
+# Created:   26/01/2016
+# Copyright: (c) Joshua White 2016-2018
+# Licence:   GNU Lesser GPL v3
 #-------------------------------------------------------------------------------
 
 """
@@ -18,13 +18,14 @@
 		- full path to recording file
 		- error string
 
-	TVHeadEnd Example:
+	TVHeadend Example:
 		RPiPVR.py %f %e
 
 """
 
 import os
 import sys
+import time
 import datetime
 import hashlib # Python 2.5+
 import shutil
@@ -34,6 +35,11 @@ try:
 	import json # Python 2.5+
 except ImportError, err:
 	import simplejson as json # Python 2.4
+try:
+	from tvh.htsp import HTSPClient
+	HTSP = True
+except ImportError, err:
+	HTSP = False
 	
 PATH = os.path.abspath(os.path.dirname(__file__))
 SCRIPT = os.path.splitext(os.path.basename(__file__))
@@ -46,6 +52,7 @@ tvh = '/home/hts/.hts/tvheadend/dvr/log' # Path to scheduled recordings (JSON)
 recompute = False # Recompute checksums if checksum file found
 pvr_interval = datetime.timedelta(hours = 1) # Minimum time between finished recording and next recording required for processing
 recipient = '' # Email recipient
+tvhaccount = ('username', 'password') # TVHeadEnd account
 
 
 def logPrint(text):
@@ -81,7 +88,7 @@ share failed due to an error: \n\n%s' % (recording, checksum, error)
 
 
 def alertTVHError(recording, error):
-	'''Send an email that TVHeadEnd posted an error.'''
+	'''Send an email that TVHeadend posted an error.'''
 
 	logPrint('TVHeadend Error: %s' % error)
 	message = 'TVHeadend reported an error with the recording %s: \n\n%s' % (recording, error)
@@ -138,6 +145,49 @@ def generateChecksum(filepath):
 
 	return chkfile
 
+
+def createHTSPConn():
+	'''Create a HTSP connection.'''
+	
+	# Attempt to connect to the server
+	try:
+		htsp = HTSPClient(('localhost', 9982))
+		msg = htsp.hello() # Initial handshake
+		htsp.authenticate(tvhaccount[0], tvhaccount[1]) # Authenticate
+		htsp.send('getDiskSpace') # Test message
+		msg = htsp.recv()
+
+		if msg is None:
+			logPrint('Error sending message to TVHeadend server. null response received.')
+			htsp = None
+		elif 'noaccess' in msg:
+			logPrint('Error sending message to TVHeadend server. Invalid credentials supplied.')
+			htsp = None
+		else:
+			logPrint('Successfully connected to TVHeadend HTSP interface.')
+			
+	except Exception, err:
+		logPrint('Error connecting to TVHeadend server: %s' % str(err))
+		htsp = None
+	
+	return htsp
+
+
+def checkHTSP():
+	'''Check for HTSP support and access to the TVH server.'''
+
+	# Import flag will have been set if HTSP is available
+	if not HTSP:
+		logPrint('HTSP support not available.')
+		connection = None
+	
+	# We have HTSP support, so attempt to connect
+	else:
+		logPrint('HTSP support available.')
+		connection = createHTSPConn()
+
+	return (HTSP, connection)
+	
 
 def checkShare(report=True):
 	'''Check if the NFS share is mounted correctly.'''
@@ -229,11 +279,13 @@ def moveRecording(recording, chkfile):
 		shutil.move(recording, dest_r)
 		shutil.move(chkfile, dest_c)
 		logPrint('Successfully transferred recording (%s) to NFS share.' % (r))
+		return True
 
 	except shutil.Error, err:
 		e = str(err)
 		alertTransfer(recording, chkfile, e)
 		logPrint('Error transferring recording (%s) to NFS share:\n%s' % (r, e))
+		return False
 
 
 def processRecording(recording):
@@ -251,7 +303,7 @@ def processRecording(recording):
 	chkfile = generateChecksum(recording)
 
 	# Move the recording and checksum file to the share
-	moveRecording(recording, chkfile)
+	moved = moveRecording(recording, chkfile)
 
 
 def checkForRecordings(abort=True):
@@ -263,9 +315,15 @@ def checkForRecordings(abort=True):
 	upcoming = None
 	completed = {}
 
+	# HTSP connection
+	htspconn = None
+	if HTSP:
+		htspconn = createHTSPConn()
+	
 	# Get list of current scheduled recordings
 	schedules = [ f for f in os.listdir(tvh) if os.path.isfile(os.path.join(tvh,f)) ]
 
+	# Iterate through the scheduled recordings (s should be an integer recording id)
 	for s in schedules:
 
 		# Read the schedule
@@ -278,8 +336,22 @@ def checkForRecordings(abort=True):
 		dte = datetime.datetime.fromtimestamp(content['stop'])
 
 		# We have a completed recording
-		if dte < now and content.has_key('filename') and os.path.exists(content['filename']):
-			completed[s] = content['filename']
+		if dte < now and content.has_key('filename'):
+
+			# If the file exists, note it
+			if content.has_key('filename') and os.path.exists(content['filename']):
+				completed[s] = content['filename']
+
+			# If it doesn't and there are no errors, we probably moved it
+			elif not content.has_key('errors') and htspconn:
+				htspconn.send('deleteDvrEntry', {'id': s})
+				result = htspconn.recv()
+				if result['success']:
+					logPrint('Successfully removed old DVR entry for %s.' % content['filename'])
+				elif result.has_key('error'):
+					logPrint('Error removing DVR entry %s: %s' % (s, result['error']))
+				else:
+					logPrint('Unknown error removing DVR entry %s.' % s)
 
 		# Check when the next recording is
 		if dts > now:
@@ -326,9 +398,9 @@ def processPreviousRecordings():
 
 		# Generate the checksum and move the recording
 		chkfile = generateChecksum(recfile)
-		moveRecording(recfile, chkfile)
+		moved = moveRecording(recfile, chkfile)
 
-
+		
 def scriptTest():
 	'''Test some of the script functionality.'''
 
@@ -341,7 +413,7 @@ def scriptTest():
 	# Test NFS share access
 	try:
 		(nfs_mount, nfs_write) = checkShare(False)
-		nfs_msg = 'NFS share mounted = %s, writable = %s.' % (nfs_mount, nfs_write)
+		nfs_msg = 'NFS share mounted = %s; writable = %s.' % (nfs_mount, nfs_write)
 	except Exception, err:
 		nfs_msg = 'Error checking NFS share: %s' % str(err)
 
@@ -352,9 +424,16 @@ def scriptTest():
 	except Exception, err:
 		rec_msg = 'Unable to check for recordings: %s' % str(err)
 
+	# Test HTSP connectivity
+	try:
+		(support, connection) = checkHTSP()
+		htsp_msg = 'HTSP support = %s; connection = %s' % (support, connection is not None)
+	except Exception, err:
+		htsp_msg = 'Unable to check for HTSP support: %s' % str(err)
+		
 	# Assemble the message
 	message = '''This is a test email from the Network PVR script.
-		<br />Checksum: %s<br />%s<br />%s''' % (scriptChksum, nfs_msg, rec_msg)
+		<br />Checksum: %s<br />%s<br />%s<br />%s''' % (scriptChksum, nfs_msg, rec_msg, htsp_msg)
 	txt = message.replace('<br />', '\n\n')
 	sendEmail('Network PVR Test Email', text=txt, html=message)
 

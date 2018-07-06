@@ -1,5 +1,5 @@
-# Network PVR
-This is a collection of scripts for a network-accessible PVR. It was designed for a Raspberry Pi running TVHeadEnd, but it should be straightforward to modify for other Unix-based systems running TVHeadEnd as well.
+# Network PVR Scripts
+This is a collection of scripts for a network-accessible PVR running TVHeadEnd. It was designed and tested on a Raspberry Pi running Raspbian, but it should be straightforward to modify for other Unix-based systems running TVHeadEnd as well.
 
 ## Dependencies
 
