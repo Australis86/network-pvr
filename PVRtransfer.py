@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-------------------------------------------------------------------------------
-# Name:      PVR Transfer v2.5
+# Name:      PVR Transfer v2.6
 # Purpose:   Process finished TVHeadend recordings and transfer them to 
 #            a NFS share.
 #
@@ -20,6 +20,8 @@
 
 	TVHeadend Example:
 		RPiPVR.py %f %e
+
+    Requires TVHeadend v4.
 
 """
 
@@ -351,10 +353,10 @@ def checkForRecordings(abort=True):
 				completed[s] = content['filename']
 
 			# If it doesn't and there are no errors, we probably moved it
-			elif not content.has_key('errors') and htspconn:
+			elif content['errors'] == 0 and content['data_errors'] == 0 and htspconn:
 				htspconn.send('deleteDvrEntry', {'id': s})
 				result = htspconn.recv()
-				if result['success']:
+				if result.has_key('success'):
 					logPrint('Successfully removed old DVR entry for %s.' % content['filename'])
 				elif result.has_key('error'):
 					logPrint('Error removing DVR entry %s: %s' % (s, result['error']))
@@ -468,8 +470,8 @@ if __name__ == '__main__':
 			processRecording(recording)
 
 		try:
-		   # Check for any old recordings
+			# Check for any old recordings
 			processPreviousRecordings()
 
 		except Exception, err:
-			logPrint(str(err))
+			logPrint('Exception: %s' % str(err))
