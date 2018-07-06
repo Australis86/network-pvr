@@ -45,12 +45,11 @@ It also has a basic system check option (`PVRtransfer.py -c`) that can be used f
 ## History
 
 * 2015-07-06 First developed PVR transfer script for TVHeadend v3.
-* 2016-01-26 Overhauled PVR transfer script and separated email configuration into separate scripts.
+* 2016-01-26 Overhauled PVR transfer script and separated email configuration into separate scripts (see [mailutils](https://github.com/Australis86/mailutils)).
 * 2018-07-06 Migrated to Github, including historical script versions.
 
 ## Copyright and Licence
 
 Unless otherwise stated, these scripts are Copyright © Joshua White and licensed under the GNU Lesser GPL v3.
 
-* `oauth2.py` is Copyright © Google Inc. and licensed under the Apache License Version 2.0.
 * HTSP client library is Copyright © Adam Sutton and licensed under the GNU GPL 3.0.
