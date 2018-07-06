@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 #-------------------------------------------------------------------------------
-# Name:      PVR Transfer v2.9
+# Name:      PVR Transfer v2.10
 # Purpose:   Process finished TVHeadend recordings and transfer them to 
-#            a NFS share.
+#            a network share.
 #
 # Author:    Joshua White
 #
@@ -33,6 +33,7 @@ import hashlib # Python 2.5+
 import shutil
 import signal
 import mail
+import random
 import psutil # Not a default module - needs to be installed
 try:
 	import json # Python 2.5+
@@ -227,7 +228,7 @@ def checkShare(report=True):
 
 		if mounted:
 			signal.alarm(0) # Disable the alarm
-			testfile = os.path.join(shared_path, '.network.pvr')
+			testfile = os.path.join(shared_path, '%f.network.pvr' % random.random())
 
 			# If the path is mounted, test writing to it
 			try:
