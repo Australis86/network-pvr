@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-------------------------------------------------------------------------------
-# Name:      PVR Transfer v2.6
+# Name:      PVR Transfer v2.7
 # Purpose:   Process finished TVHeadend recordings and transfer them to 
 #            a NFS share.
 #
@@ -19,9 +19,9 @@
 		- error string
 
 	TVHeadend Example:
-		RPiPVR.py %f %e
+		PVRtransfer.py %f %e
 
-    Requires TVHeadend v4.
+	Requires psutil and TVHeadend v4.
 
 """
 
@@ -33,6 +33,7 @@ import hashlib # Python 2.5+
 import shutil
 import signal
 import mail
+import psutil # Not a default module - needs to be installed
 try:
 	import json # Python 2.5+
 except ImportError, err:
@@ -55,6 +56,7 @@ recompute = False # Recompute checksums if checksum file found
 pvr_interval = datetime.timedelta(hours = 1) # Minimum time between finished recording and next recording required for processing
 recipient = '' # Email recipient
 tvhaccount = ('username', 'password') # TVHeadEnd account
+min_free_space = 8*1024*1024*1024 # Minimum free space warning (8GB)
 
 
 def logPrint(text):
@@ -190,7 +192,24 @@ def checkHTSP():
 
 	return (HTSP, connection)
 	
+	
+def checkTVH():
+	'''Check if TVHeadend is running.'''
+	
+	# Get the list of running processes
+	processes = [psutil.Process(p).name() for p in psutil.pids()]
+	
+	return 'tvheadend' in processes
 
+	
+def checkLocalFreeSpace():
+	'''Get the number of bytes of free space in the recording partition.'''
+	
+	statvfs = os.statvfs('/home')
+	freespace = statvfs.f_frsize * statvfs.f_bavail
+	return freespace
+	
+	
 def checkShare(report=True):
 	'''Check if the NFS share is mounted correctly.'''
 
@@ -207,7 +226,7 @@ def checkShare(report=True):
 
 		if mounted:
 			signal.alarm(0) # Disable the alarm
-			testfile = os.path.join(nfs_share, '.rpi.pvr')
+			testfile = os.path.join(nfs_share, '.network.pvr')
 
 			# If the path is mounted, test writing to it
 			try:
@@ -434,6 +453,13 @@ def scriptTest():
 	except Exception, err:
 		rec_msg = 'Unable to check for recordings: %s' % str(err)
 
+	# Check if TVHeadend is running
+	try:
+		running = checkTVH()
+		service_msg = 'TVHeadend running: %s' % running
+	except Exception, err:
+		service_msg = 'Unable to check if TVHeadend is running: %s' % str(err)
+
 	# Test HTSP connectivity
 	try:
 		(support, connection) = checkHTSP()
@@ -441,12 +467,61 @@ def scriptTest():
 	except Exception, err:
 		htsp_msg = 'Unable to check for HTSP support: %s' % str(err)
 		
+	# Check free space
+	try:
+		freespace = checkLocalFreeSpace()
+		space_msg = 'Free space: %d bytes' % freespace
+	except Exception, err:
+		space_msg = 'Unable to check free space: %s' % str(err)
+		
+		
 	# Assemble the message
 	message = '''This is a test email from the Network PVR script.
-		<br />Checksum: %s<br />%s<br />%s<br />%s''' % (scriptChksum, nfs_msg, rec_msg, htsp_msg)
-	txt = message.replace('<br />', '\n\n')
+		<br>Checksum: %s<br>%s<br>%s<br>%s<br>%s<br>%s''' % (scriptChksum, nfs_msg, rec_msg, service_msg, htsp_msg, space_msg)
+	txt = message.replace('<br>', '\n\n')
 	sendEmail('Network PVR Test Email', text=txt, html=message)
 
+	
+def checkSystem():
+	'''Run some basic checks on the system and email reports as required.'''
+	
+	send_warning = False
+	space_msg = None
+	service_msg = None
+	
+	# Check free space
+	try:
+		freespace = checkLocalFreeSpace()
+		if freespace < min_free_space: # Less than 4GB
+			send_warning = True
+			space_msg = 'Free space below minimum threshold: %d' % freespace
+	except Exception, err:
+		send_warning = True
+		space_msg = 'Unable to check free space.'
+	
+	# Check if TVHeadend service is running
+	try:
+		running = checkTVH()
+		if not running:
+			send_warning = True
+			service_msg = 'TVHeadend service is not running.'
+	except Exception, err:
+		send_warning = True
+		service_msg = 'Unable to check if TVHeadend is running.'
+	
+	
+	# Send email if required
+	if send_warning:
+		
+		# Assemble the message
+		message = '''This is a warning message from the Network PVR.'''
+		if space_msg is not None:
+			message += '<br>%s' % space_msg
+		if service_msg is not None:
+			message += '<br>%s' % service_msg
+			
+		txt = message.replace('<br>', '\n\n')
+		sendEmail('Network PVR System Fault', text=txt, html=message)
 
 
 if __name__ == '__main__':
@@ -454,6 +529,12 @@ if __name__ == '__main__':
 
 	if '-t' in sys.argv:
 		scriptTest() # Script testing
+		
+	elif '-c' in sys.argv:
+		checkSystem() # System checks
+		
+	elif '-r' in sys.argv: # Send an email on reboot
+		sendEmail('Network PVR System Rebooted', text='The Network PVR has been restarted.')
 
 	else:
 		if args > 2: # Error specified
