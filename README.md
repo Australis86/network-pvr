@@ -11,10 +11,12 @@ Details coming soon.
 
 ## History
 
-2015-07-06 First developed PVR transfer script.
-2016-01-26 Overhauled PVR transfer script.
-2018-07-06 Migrated to Github, including historical script versions.
+* 2015-07-06 First developed PVR transfer script.
+* 2016-01-26 Overhauled PVR transfer script and separated email configuration into separate scripts.
+* 2018-07-06 Migrated to Github, including historical script versions.
 
-## Copyright
+## Copyright and Licence
 
-These scripts are Copyright © Joshua White and licenced under the GNU Lesser GPL v3.
+Unless otherwise stated, these scripts are Copyright © Joshua White and licensed under the GNU Lesser GPL v3.
+
+`oauth2.py` is Copyright © Google Inc. and licensed under the Apache License Version 2.0.
