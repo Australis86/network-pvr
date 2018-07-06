@@ -19,4 +19,5 @@ Details coming soon.
 
 Unless otherwise stated, these scripts are Copyright © Joshua White and licensed under the GNU Lesser GPL v3.
 
-`oauth2.py` is Copyright © Google Inc. and licensed under the Apache License Version 2.0.
+* `oauth2.py` is Copyright © Google Inc. and licensed under the Apache License Version 2.0.
+* HTSP client library is Copyright © Adam Sutton and licensed under the GNU GPL 3.0.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #-------------------------------------------------------------------------------
-# Name:      PVR Transfer v2.4
+# Name:      PVR Transfer v2.5
 # Purpose:   Process finished TVHeadend recordings and transfer them to 
 #            a NFS share.
 #
@@ -222,6 +222,14 @@ def checkShare(report=True):
 				if report:
 					alertNFS(msg)
 					sys.exit(1)
+					
+		else:
+			signal.alarm(0) # Disable the alarm
+			msg = 'NFS share is not mounted.'
+			logPrint(msg)
+			if report:
+				alertNFS(msg)
+				sys.exit(1)
 
 	except Exception, err:
 		signal.alarm(0) # Disable the alarm
