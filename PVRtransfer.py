@@ -367,19 +367,31 @@ def checkForRecordings(abort=True):
 		dte = datetime.datetime.fromtimestamp(content['stop'])
 
 		# We have a completed recording
-		if dte < now and content.has_key('filename'):
-
+		if dte < now:
+			fn = None
+		
+			# TVHeadend 3.x
+			if 'filename' in content:
+				fn = content['filename']
+			
+			# TVHeadend 4.x
+			elif 'files' in content and len(content['files']) > 0:
+				for f in content['files']:
+					if 'filename' in f:
+						fn = f['filename']
+						break
+			
 			# If the file exists, note it
-			if content.has_key('filename') and os.path.exists(content['filename']):
-				completed[s] = content['filename']
+			if fn is not None and os.path.exists(fn):
+				completed[s] = fn
 
 			# If it doesn't and there are no errors, we probably moved it
 			elif content['errors'] == 0 and content['data_errors'] == 0 and htspconn:
 				htspconn.send('deleteDvrEntry', {'id': s})
 				result = htspconn.recv()
-				if result.has_key('success'):
+				if 'success' in result:
 					logPrint('Successfully removed old DVR entry for %s.' % content['filename'])
-				elif result.has_key('error'):
+				elif 'error' in result:
 					logPrint('Error removing DVR entry %s: %s' % (s, result['error']))
 				else:
 					logPrint('Unknown error removing DVR entry %s.' % s)
