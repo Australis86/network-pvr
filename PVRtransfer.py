@@ -34,7 +34,12 @@ import shutil
 import signal
 from mailutils import mail
 import random
-import psutil # Not a default module - needs to be installed
+import argparse
+try:
+	import psutil # Not a default module - needs to be installed
+except ImportError, err:
+	print "Warning: unable to import psutil. Checking for TVHeadend instances will not be available."
+	psutil = None
 try:
 	import json # Python 2.5+
 except ImportError, err:
@@ -57,8 +62,32 @@ tvh = '/home/hts/.hts/tvheadend/dvr/log' # Path to scheduled recordings (JSON)
 recompute = False # Recompute checksums if checksum file found
 pvr_interval = datetime.timedelta(hours = 1) # Minimum time between finished recording and next recording required for processing
 recipient = '' # Email recipient
-tvhaccount = ('username', 'password') # TVHeadEnd account
+tvhaccount = ('username', 'password') # TVHeadend account
 min_free_space = 8*1024*1024*1024 # Minimum free space warning (8GB)
+
+
+def initMenu():
+	"""Initialise the command-line parser."""
+	
+	parser = argparse.ArgumentParser()
+	
+	mgroup = parser.add_mutually_exclusive_group()
+	
+	mgroup.add_argument("-t","--test", help="run script self-test functions",
+		action="store_true", default=False)
+	mgroup.add_argument("-c","--check", help="system checks",
+		action="store_true", default=False)
+	mgroup.add_argument("-r","--reboot", help="send a preconfigured email (for use at system boot)",
+		action="store_true", default=False)
+	mgroup.add_argument("-p","--previous", help="check for previous recordings",
+		action="store_true", default=False)
+	parser.add_argument("-d","--dest", help="destination subfolder to use for storing recordings")
+		
+	parser.add_argument("filepath", help="full path to recording")
+	parser.add_argument("tvherror", help="error string produced by TVHeadend")
+	
+	return parser.parse_args()
+
 
 
 def logPrint(text):
@@ -198,10 +227,13 @@ def checkHTSP():
 def checkTVH():
 	'''Check if TVHeadend is running.'''
 	
-	# Get the list of running processes
-	processes = [psutil.Process(p).name() for p in psutil.pids()]
-	
-	return 'tvheadend' in processes
+	if psutil is not None:
+		# Get the list of running processes
+		processes = [psutil.Process(p).name() for p in psutil.pids()]
+		
+		return 'tvheadend' in processes
+		
+	return False
 
 	
 def checkLocalFreeSpace():
@@ -539,25 +571,24 @@ def checkSystem():
 
 
 if __name__ == '__main__':
-	args = len(sys.argv)
+	args = initMenu()
+	
+	# Update the destination path if required
+	if args.dest:
+		shared_path = os.path.join(shared_path, args.dest)
 
-	if '-t' in sys.argv:
+	if args.test:
 		scriptTest() # Script testing
-		
-	elif '-c' in sys.argv:
+	elif args.check:
 		checkSystem() # System checks
-		
-	elif '-r' in sys.argv: # Send an email on reboot
+	elif args.reboot:
 		sendEmail('Network PVR System Rebooted', text='The Network PVR has been restarted.')
-
-	elif '-p' in sys.argv: # Check for previous recordings
+	elif args.previous:
+		# Check for any old recordings
 		try:
-			# Check for any old recordings
 			processPreviousRecordings()
-
 		except Exception, err:
 			logPrint('Exception: %s' % str(err))
-
 	else:
 		if args > 2: # Error specified
 			hts_err = sys.argv[2]
