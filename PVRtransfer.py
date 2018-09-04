@@ -71,23 +71,29 @@ def initMenu():
 	
 	parser = argparse.ArgumentParser()
 	
+	# Mutually-exclusive group
 	mgroup = parser.add_mutually_exclusive_group()
-	
 	mgroup.add_argument("-t","--test", help="run script self-test functions",
 		action="store_true", default=False)
 	mgroup.add_argument("-c","--check", help="system checks",
 		action="store_true", default=False)
 	mgroup.add_argument("-r","--reboot", help="send a preconfigured email (for use at system boot)",
 		action="store_true", default=False)
-	mgroup.add_argument("-p","--previous", help="check for previous recordings",
-		action="store_true", default=False)
-	parser.add_argument("-d","--dest", help="destination subfolder to use for storing recordings")
-		
-	parser.add_argument("filepath", help="full path to recording")
-	parser.add_argument("tvherror", help="error string produced by TVHeadend")
-	
-	return parser.parse_args()
 
+	# Options related to recording management
+	rgroup = parser.add_argument_group("file handling")
+	rgroup.add_argument("-f","--file", help="full path to recording")
+	rgroup.add_argument("-e","--error", help="error string produced by TVHeadend")
+	rgroup.add_argument("-d","--dest", help="destination subfolder to use for storing recordings")
+	rgroup.add_argument("-p","--no-previous", help="skip check for previous recordings",
+		action="store_false", default=True)
+
+	# No easy way to make multiple options required, or at least one of a group required unless they're mutually exclusive
+	# Logic will need to be handled manually
+	
+	# Parse args here first before return (may wish to add further logic here in future)
+	args = parser.parse_args()
+	return args
 
 
 def logPrint(text):
@@ -573,39 +579,32 @@ def checkSystem():
 if __name__ == '__main__':
 	args = initMenu()
 	
-	# Update the destination path if required
-	if args.dest:
-		shared_path = os.path.join(shared_path, args.dest)
-
+	# Tests and checks (mutually exclusive)
 	if args.test:
 		scriptTest() # Script testing
 	elif args.check:
 		checkSystem() # System checks
 	elif args.reboot:
 		sendEmail('Network PVR System Rebooted', text='The Network PVR has been restarted.')
-	elif args.previous:
-		# Check for any old recordings
-		try:
-			processPreviousRecordings()
-		except Exception, err:
-			logPrint('Exception: %s' % str(err))
 	else:
-		if args > 2: # Error specified
-			hts_err = sys.argv[2]
-			recording = sys.argv[1]
+	
+		# Update the destination path if required
+		if args.dest:
+			shared_path = os.path.join(shared_path, args.dest)
 
-			if hts_err.strip() == 'OK':
-				processRecording(recording)
+		# Handle recording
+		if args.file:
+			if args.error:
+				if args.error.strip() == 'OK':
+					processRecording(args.file)
+				else:
+					alertTVHError(args.file, args.error)
 			else:
-				alertTVHError(recording, hts_err)
-
-		elif args > 1: # Recording name specified
-			recording = sys.argv[1]
-			processRecording(recording)
-
-		try:
-			# Check for any old recordings
-			processPreviousRecordings()
-
-		except Exception, err:
-			logPrint('Exception: %s' % str(err))
+				processRecording(args.file)
+		
+		# Past recordings
+		if not args.no_previous:
+			try:
+				processPreviousRecordings()
+			except Exception, err:
+				logPrint('Exception: %s' % str(err))
