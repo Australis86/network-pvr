@@ -20,8 +20,10 @@ The scripts are built on Python 2.7.x and require the `psutil` module.
 This script is designed to be called by TVHeadend once a recording is complete. All completed recordings are then transferred to a network share (i.e. NAS or a workstation where they can be edited). The script can be called by TVHeadend as follows:
 
 ```
-PVRtransfer.py %f %e
+PVRtransfer.py -f %f -e %e
 ```
+
+A subfolder within the network share can be specified using the `-d SUBFOLDER` option.
 
 Existing recordings can be manually processed using the `-p` option, rather than waiting for the next recording to complete. **Note**: when called by TVHeadend, the script will not transfer recordings if another recording is underway or about to begin.
 
