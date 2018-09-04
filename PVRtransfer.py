@@ -58,6 +58,7 @@ SHARETIMEOUT = 30 # Seconds; allow enough time for drive to spin up
 
 # GLOBAL VARIABLES
 shared_path = '/mnt/nas-pvr/' # NFS share to be used as destination for completed recordings
+dest_path = shared_path
 tvh = '/home/hts/.hts/tvheadend/dvr/log' # Path to scheduled recordings (JSON)
 recompute = False # Recompute checksums if checksum file found
 pvr_interval = datetime.timedelta(hours = 1) # Minimum time between finished recording and next recording required for processing
@@ -262,11 +263,11 @@ def checkShare(report=True):
 		signal.alarm(SHARETIMEOUT)
 
 		# First check if the path is mounted
-		mounted = os.path.ismount(shared_path)
+		mounted = os.path.ismount(shared_path) # Must be the root of the share
 
 		if mounted:
 			signal.alarm(0) # Disable the alarm
-			testfile = os.path.join(shared_path, '%f.network.pvr' % random.random())
+			testfile = os.path.join(dest_path, '%f.network.pvr' % random.random())
 
 			# If the path is mounted, test writing to it
 			try:
@@ -340,8 +341,8 @@ def moveRecording(recording, chkfile):
 
 	# Generate the full destination paths
 	r = os.path.basename(recording)
-	dest_r = os.path.abspath(os.path.join(shared_path, r))
-	dest_c = os.path.abspath(os.path.join(shared_path, os.path.basename(chkfile)))
+	dest_r = os.path.abspath(os.path.join(dest_path, r))
+	dest_c = os.path.abspath(os.path.join(dest_path, os.path.basename(chkfile)))
 
 	# Attempt to move the recording and checksum to the NAS
 	try:
@@ -590,7 +591,7 @@ if __name__ == '__main__':
 	
 		# Update the destination path if required
 		if args.dest:
-			shared_path = os.path.join(shared_path, args.dest)
+			dest_path = os.path.join(shared_path, args.dest)
 
 		# Handle recording
 		if args.file:
