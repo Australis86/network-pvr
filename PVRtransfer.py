@@ -87,7 +87,7 @@ def initMenu():
 	rgroup.add_argument("-e","--error", help="error string produced by TVHeadend")
 	rgroup.add_argument("-d","--dest", help="destination subfolder to use for storing recordings")
 	rgroup.add_argument("-p","--no-previous", help="skip check for previous recordings",
-		action="store_false", default=True)
+		action="store_true", default=False)
 
 	# No easy way to make multiple options required, or at least one of a group required unless they're mutually exclusive
 	# Logic will need to be handled manually
